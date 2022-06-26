@@ -17,6 +17,7 @@ import 'dart:ui' show Color, ImageByteFormat;
 import 'package:collection/collection.dart'
     show PriorityQueue, HeapPriorityQueue;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 
 /// A description of an encoded image.
@@ -211,6 +212,18 @@ class PaletteGenerator with Diagnosticable {
     );
   }
 
+  // checkURL for errors start
+  static ImageProvider checkUrl(String imageURL) {
+    try {
+      return Image.network(imageURL).image;
+    } catch (e) {
+      return Image.network(
+              'https://cdn.pixabay.com/photo/2017/11/13/07/14/cats-eyes-2944820__340.jpg')
+          .image;
+    }
+  }
+  // checkURL for errors end
+
   /// Create a [PaletteGenerator] from an [ImageProvider], like [FileImage], or
   /// [AssetImage], asynchronously.
   ///
@@ -237,7 +250,7 @@ class PaletteGenerator with Diagnosticable {
   /// giving up on it. A value of Duration.zero implies waiting forever. The
   /// default timeout is 15 seconds.
   static Future<PaletteGenerator> fromImageProvider(
-    ImageProvider imageProvider, {
+    String imageUrl, {
     Size? size,
     Rect? region,
     int maximumColorCount = _defaultCalculateNumberColors,
@@ -260,6 +273,7 @@ class PaletteGenerator with Diagnosticable {
             (region.bottomRight.dx <= size!.width &&
                 region.bottomRight.dy <= size.height),
         'Region $region is outside the image $size');
+    ImageProvider imageProvider = checkUrl(imageUrl);
     final ImageStream stream = imageProvider.resolve(
       ImageConfiguration(size: size, devicePixelRatio: 1.0),
     );

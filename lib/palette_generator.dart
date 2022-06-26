@@ -212,18 +212,6 @@ class PaletteGenerator with Diagnosticable {
     );
   }
 
-  // checkURL for errors start
-  static ImageProvider checkUrl(String imageURL) {
-    try {
-      return Image.network(imageURL).image;
-    } catch (e) {
-      return Image.network(
-              'https://cdn.pixabay.com/photo/2017/11/13/07/14/cats-eyes-2944820__340.jpg')
-          .image;
-    }
-  }
-  // checkURL for errors end
-
   /// Create a [PaletteGenerator] from an [ImageProvider], like [FileImage], or
   /// [AssetImage], asynchronously.
   ///
@@ -250,7 +238,7 @@ class PaletteGenerator with Diagnosticable {
   /// giving up on it. A value of Duration.zero implies waiting forever. The
   /// default timeout is 15 seconds.
   static Future<PaletteGenerator> fromImageProvider(
-    String imageUrl, {
+    ImageProvider imageProvider, {
     Size? size,
     Rect? region,
     int maximumColorCount = _defaultCalculateNumberColors,
@@ -273,28 +261,60 @@ class PaletteGenerator with Diagnosticable {
             (region.bottomRight.dx <= size!.width &&
                 region.bottomRight.dy <= size.height),
         'Region $region is outside the image $size');
-    ImageProvider imageProvider = checkUrl(imageUrl);
+
+    final ImageProvider onErrorImage = Image.network(
+            'https://cdn.pixabay.com/photo/2017/11/13/07/14/cats-eyes-2944820__340.jpg')
+        .image;
+    final ImageStream onErrorStream = onErrorImage.resolve(
+      ImageConfiguration(size: size, devicePixelRatio: 1.0),
+    );
     final ImageStream stream = imageProvider.resolve(
       ImageConfiguration(size: size, devicePixelRatio: 1.0),
     );
     final Completer<ui.Image> imageCompleter = Completer<ui.Image>();
     Timer? loadFailureTimeout;
     late ImageStreamListener listener;
+    late ImageStreamListener onErrorListener;
     listener = ImageStreamListener((ImageInfo info, bool synchronousCall) {
       loadFailureTimeout?.cancel();
       stream.removeListener(listener);
       imageCompleter.complete(info.image);
     });
+    onErrorListener =
+        ImageStreamListener((ImageInfo info, bool synchronousCall) {
+      loadFailureTimeout?.cancel();
+      onErrorStream.removeListener(listener);
+      imageCompleter.complete(info.image);
+    });
 
     if (timeout != Duration.zero) {
-      loadFailureTimeout = Timer(timeout, () {
-        stream.removeListener(listener);
-        imageCompleter.completeError(
-          TimeoutException(
-              'Timeout occurred trying to load from $imageProvider'),
+      // stream.removeListener(listener);
+      // imageCompleter.completeError(
+      //   TimeoutException(
+      //       'Timeout occurred trying to load from $imageProvider'),
+      // );
+      onErrorStream.addListener(onErrorListener);
+      final ui.Image image = await imageCompleter.future;
+      ui.Rect? newRegion = region;
+      if (size != null && region != null) {
+        final double scale = image.width / size.width;
+        newRegion = Rect.fromLTRB(
+          region.left * scale,
+          region.top * scale,
+          region.right * scale,
+          region.bottom * scale,
         );
-      });
+      }
+      loadFailureTimeout = Timer(timeout, () async {});
+      return PaletteGenerator.fromImage(
+        image,
+        region: newRegion,
+        maximumColorCount: maximumColorCount,
+        filters: filters,
+        targets: targets,
+      );
     }
+
     stream.addListener(listener);
     final ui.Image image = await imageCompleter.future;
     ui.Rect? newRegion = region;

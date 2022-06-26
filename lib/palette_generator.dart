@@ -17,7 +17,6 @@ import 'dart:ui' show Color, ImageByteFormat;
 import 'package:collection/collection.dart'
     show PriorityQueue, HeapPriorityQueue;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 
 /// A description of an encoded image.
@@ -236,7 +235,7 @@ class PaletteGenerator with Diagnosticable {
   ///
   /// The [timeout] describes how long to wait for the image to load before
   /// giving up on it. A value of Duration.zero implies waiting forever. The
-  /// default timeout is 15 seconds.
+  /// default timeout is 8 seconds.
   static Future<PaletteGenerator> fromImageProvider(
     ImageProvider imageProvider, {
     Size? size,
@@ -246,7 +245,7 @@ class PaletteGenerator with Diagnosticable {
       avoidRedBlackWhitePaletteFilter
     ],
     List<PaletteTarget> targets = const <PaletteTarget>[],
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     assert(region == null || size != null);
     assert(region == null || region != Rect.zero);
@@ -261,60 +260,27 @@ class PaletteGenerator with Diagnosticable {
             (region.bottomRight.dx <= size!.width &&
                 region.bottomRight.dy <= size.height),
         'Region $region is outside the image $size');
-
-    final ImageProvider onErrorImage = Image.network(
-            'https://cdn.pixabay.com/photo/2017/11/13/07/14/cats-eyes-2944820__340.jpg')
-        .image;
-    final ImageStream onErrorStream = onErrorImage.resolve(
-      ImageConfiguration(size: size, devicePixelRatio: 1.0),
-    );
     final ImageStream stream = imageProvider.resolve(
       ImageConfiguration(size: size, devicePixelRatio: 1.0),
     );
     final Completer<ui.Image> imageCompleter = Completer<ui.Image>();
     Timer? loadFailureTimeout;
     late ImageStreamListener listener;
-    late ImageStreamListener onErrorListener;
     listener = ImageStreamListener((ImageInfo info, bool synchronousCall) {
       loadFailureTimeout?.cancel();
       stream.removeListener(listener);
       imageCompleter.complete(info.image);
     });
-    onErrorListener =
-        ImageStreamListener((ImageInfo info, bool synchronousCall) {
-      loadFailureTimeout?.cancel();
-      onErrorStream.removeListener(listener);
-      imageCompleter.complete(info.image);
-    });
 
-    if (timeout != Duration.zero) {
-      // stream.removeListener(listener);
-      // imageCompleter.completeError(
-      //   TimeoutException(
-      //       'Timeout occurred trying to load from $imageProvider'),
-      // );
-      onErrorStream.addListener(onErrorListener);
-      final ui.Image image = await imageCompleter.future;
-      ui.Rect? newRegion = region;
-      if (size != null && region != null) {
-        final double scale = image.width / size.width;
-        newRegion = Rect.fromLTRB(
-          region.left * scale,
-          region.top * scale,
-          region.right * scale,
-          region.bottom * scale,
-        );
-      }
-      loadFailureTimeout = Timer(timeout, () async {});
-      return PaletteGenerator.fromImage(
-        image,
-        region: newRegion,
-        maximumColorCount: maximumColorCount,
-        filters: filters,
-        targets: targets,
-      );
-    }
-
+    // if (timeout != Duration.zero) {
+    //   loadFailureTimeout = Timer(timeout, () {
+    //     stream.removeListener(listener);
+    //     imageCompleter.completeError(
+    //       TimeoutException(
+    //           'Timeout occurred trying to load from $imageProvider'),
+    //     );
+    //   });
+    // }
     stream.addListener(listener);
     final ui.Image image = await imageCompleter.future;
     ui.Rect? newRegion = region;
